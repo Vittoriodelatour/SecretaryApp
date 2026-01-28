@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import './index.css';
-import { Calendar, CheckSquare, Grid3x3 } from 'lucide-react';
+import { Calendar, CheckSquare, Grid3x3, AlertCircle } from 'lucide-react';
 import CommandInput from './components/CommandInput';
 import TaskList from './components/TaskList';
 import CalendarView from './components/CalendarView';
