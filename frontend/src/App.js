@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import './index.css';
-import { Calendar, ListTodo, Mic, MessageCircle, AlertCircle, BarChart3 } from 'lucide-react';
+import { Calendar, ListTodo, MessageCircle, AlertCircle, BarChart3 } from 'lucide-react';
 import VoiceInput from './components/VoiceInput';
 import ChatInput from './components/ChatInput';
 import TaskList from './components/TaskList';
