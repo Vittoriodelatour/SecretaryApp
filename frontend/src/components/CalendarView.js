@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
-import { formatDate } from '../utils/dateUtils';
 
 export default function CalendarView({ tasks, isLoading }) {
   const weekDays = useMemo(() => {

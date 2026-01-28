@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import './index.css';
-import { Calendar, CheckSquare, Grid3x3, AlertCircle } from 'lucide-react';
+import { Calendar, CheckSquare, Grid3x3 } from 'lucide-react';
 import CommandInput from './components/CommandInput';
 import TaskList from './components/TaskList';
 import CalendarView from './components/CalendarView';
 import PriorityMatrix from './components/PriorityMatrix';
 import apiService from './services/api';
 import speechService from './services/speechService';
-import { getDateRange } from './utils/dateUtils';
 
 function App() {
   const [currentView, setCurrentView] = useState('list');
   const [tasks, setTasks] = useState([]);
   const [tasksByQuadrant, setTasksByQuadrant] = useState({});
-  const [lastCommand, setLastCommand] = useState('');
   const [lastResponse, setLastResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -47,7 +45,6 @@ function App() {
 
   const handleCommand = async (commandText) => {
     setIsLoading(true);
-    setLastCommand(commandText);
     setError('');
 
     try {

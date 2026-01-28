@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, AlertCircle } from 'lucide-react';
+import { Send } from 'lucide-react';
 import VoiceInput from './VoiceInput';
 
 export default function CommandInput({ onCommand, isLoading }) {
