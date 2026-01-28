@@ -1,22 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import './index.css';
-import { Calendar, CheckSquare, Grid3x3, AlertCircle } from 'lucide-react';
-import CommandInput from './components/CommandInput';
+import { Calendar, ListTodo, Mic, MessageCircle, AlertCircle, BarChart3 } from 'lucide-react';
+import VoiceInput from './components/VoiceInput';
+import ChatInput from './components/ChatInput';
 import TaskList from './components/TaskList';
 import CalendarView from './components/CalendarView';
-import PriorityMatrix from './components/PriorityMatrix';
 import apiService from './services/api';
 import speechService from './services/speechService';
 
 function App() {
   const [currentView, setCurrentView] = useState('list');
   const [tasks, setTasks] = useState([]);
-  const [tasksByQuadrant, setTasksByQuadrant] = useState({});
   const [lastResponse, setLastResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [completedToday, setCompletedToday] = useState(0);
   const [responseType, setResponseType] = useState('success');
+  const [inputMode, setInputMode] = useState('none'); // 'none', 'voice', 'chat'
 
   // Load tasks on mount
   useEffect(() => {
@@ -27,25 +28,26 @@ function App() {
     try {
       const response = await apiService.getTasks({ status: 'pending' });
       setTasks(response.data);
+
+      // Count completed tasks today
+      const today = new Date().toDateString();
+      const completed = response.data.filter(t => {
+        const completedDate = t.completed_at ? new Date(t.completed_at).toDateString() : null;
+        return completedDate === today;
+      }).length;
+      setCompletedToday(completed);
+
       setError('');
     } catch (err) {
-      setError('Failed to load tasks. Make sure the backend is running.');
+      setError('Unable to connect. Make sure backend is running.');
       console.error('Error fetching tasks:', err);
-    }
-  };
-
-  const fetchPriorityMatrix = async () => {
-    try {
-      const response = await apiService.getPriorityMatrix();
-      setTasksByQuadrant(response.data);
-    } catch (err) {
-      console.error('Error fetching priority matrix:', err);
     }
   };
 
   const handleCommand = async (commandText) => {
     setIsLoading(true);
     setError('');
+    setInputMode('none');
 
     try {
       const response = await apiService.processCommand(commandText);
@@ -61,11 +63,6 @@ function App() {
 
       // Refresh tasks after command
       await fetchTasks();
-
-      // If viewing matrix, refresh it too
-      if (currentView === 'matrix') {
-        await fetchPriorityMatrix();
-      }
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to process command';
       setLastResponse(errorMessage);
@@ -82,7 +79,7 @@ function App() {
       await apiService.completeTask(taskId);
       const completedTask = tasks.find(t => t.id === taskId);
       if (completedTask) {
-        speechService.speak(`Task "${completedTask.title}" marked as complete`);
+        speechService.speak(`Done: ${completedTask.title}`);
       }
       await fetchTasks();
     } catch (err) {
@@ -94,13 +91,13 @@ function App() {
   };
 
   const handleDelete = async (taskId) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
+    if (window.confirm('Delete this task?')) {
       setIsLoading(true);
       try {
         await apiService.deleteTask(taskId);
         const deletedTask = tasks.find(t => t.id === taskId);
         if (deletedTask) {
-          speechService.speak(`Task "${deletedTask.title}" deleted`);
+          speechService.speak(`Deleted: ${deletedTask.title}`);
         }
         await fetchTasks();
       } catch (err) {
@@ -112,104 +109,86 @@ function App() {
     }
   };
 
-  const handleViewChange = (view) => {
-    setCurrentView(view);
-    if (view === 'matrix') {
-      fetchPriorityMatrix();
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <h1 className="text-3xl font-bold text-gray-800">
-            Personal Secretary
-          </h1>
-          <p className="text-gray-600 text-sm mt-1">
-            Voice-powered task management and scheduling
-          </p>
-        </div>
-      </header>
+    <div className="min-h-screen bg-black text-white" style={{ backgroundColor: '#0f0f0f' }}>
+      {/* Top Navigation Cards */}
+      <div className="px-4 pt-4 pb-2 overflow-x-auto">
+        <div className="flex gap-3 pb-2">
+          {/* Checklist Card */}
+          <button
+            onClick={() => setCurrentView('list')}
+            className={`flex-shrink-0 px-4 py-3 rounded-xl transition-all ${
+              currentView === 'list'
+                ? 'bg-cyan-500/20 border border-cyan-500'
+                : 'bg-white/5 border border-white/10 hover:bg-white/10'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <ListTodo className="w-4 h-4" />
+              <span className="text-sm font-medium">Checklist</span>
+            </div>
+          </button>
 
-      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6 pb-24 md:pb-6">
+          {/* Calendar Card */}
+          <button
+            onClick={() => setCurrentView('calendar')}
+            className={`flex-shrink-0 px-4 py-3 rounded-xl transition-all ${
+              currentView === 'calendar'
+                ? 'bg-cyan-500/20 border border-cyan-500'
+                : 'bg-white/5 border border-white/10 hover:bg-white/10'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              <span className="text-sm font-medium">Calendar</span>
+            </div>
+          </button>
+
+          {/* Statistics Card */}
+          <button
+            onClick={() => setCurrentView('stats')}
+            className={`flex-shrink-0 px-4 py-3 rounded-xl transition-all ${
+              currentView === 'stats'
+                ? 'bg-cyan-500/20 border border-cyan-500'
+                : 'bg-white/5 border border-white/10 hover:bg-white/10'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              <span className="text-sm font-medium">Stats</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <main className="px-4 pb-32 pt-2">
         {/* Error Alert */}
         {error && (
-          <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-            <p className="text-red-800 text-sm">{error}</p>
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 mb-4">
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+            <p className="text-sm text-red-200">{error}</p>
             <button
               onClick={() => setError('')}
-              className="ml-auto text-red-600 hover:text-red-800 font-medium"
+              className="ml-auto text-red-400 hover:text-red-300 text-xs font-medium"
             >
-              Dismiss
+              ✕
             </button>
           </div>
         )}
 
-        {/* Command Input */}
-        <CommandInput onCommand={handleCommand} isLoading={isLoading} />
-
-        {/* Last Response */}
+        {/* Response Message */}
         {lastResponse && (
           <div
-            className={`p-4 rounded-lg border ${
+            className={`p-4 rounded-xl mb-4 text-sm font-medium transition-all ${
               responseType === 'success'
-                ? 'bg-green-50 border-green-200'
-                : 'bg-red-50 border-red-200'
+                ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-200'
+                : 'bg-red-500/10 border border-red-500/30 text-red-200'
             }`}
           >
-            <p
-              className={`text-sm font-medium ${
-                responseType === 'success'
-                  ? 'text-green-800'
-                  : 'text-red-800'
-              }`}
-            >
-              {lastResponse}
-            </p>
+            {lastResponse}
           </div>
         )}
-
-        {/* View Selector */}
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => handleViewChange('list')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              currentView === 'list'
-                ? 'bg-blue-500 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <CheckSquare className="w-4 h-4" />
-            Task List
-          </button>
-
-          <button
-            onClick={() => handleViewChange('calendar')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              currentView === 'calendar'
-                ? 'bg-blue-500 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            Calendar
-          </button>
-
-          <button
-            onClick={() => handleViewChange('matrix')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              currentView === 'matrix'
-                ? 'bg-blue-500 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <Grid3x3 className="w-4 h-4" />
-            Priority Matrix
-          </button>
-        </div>
 
         {/* Content Views */}
         {currentView === 'list' && (
@@ -225,54 +204,69 @@ function App() {
           <CalendarView tasks={tasks} isLoading={isLoading} />
         )}
 
-        {currentView === 'matrix' && (
-          <PriorityMatrix
-            tasksByQuadrant={tasksByQuadrant}
-            isLoading={isLoading}
-          />
+        {currentView === 'stats' && (
+          <div className="space-y-4">
+            <div className="p-6 rounded-xl bg-white/5 border border-white/10">
+              <div className="text-cyan-400 text-3xl font-bold">{tasks.length}</div>
+              <div className="text-gray-400 text-sm mt-1">Active Tasks</div>
+            </div>
+            <div className="p-6 rounded-xl bg-white/5 border border-white/10">
+              <div className="text-cyan-400 text-3xl font-bold">{completedToday}</div>
+              <div className="text-gray-400 text-sm mt-1">Completed Today</div>
+            </div>
+          </div>
         )}
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden">
-        <div className="grid grid-cols-3 gap-1 p-2">
+      {/* Bottom Control Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black to-black/80 backdrop-blur-sm border-t border-white/10">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-around gap-4">
+          {/* Checklist Button */}
           <button
-            onClick={() => handleViewChange('list')}
-            className={`py-2 px-3 rounded text-sm font-medium flex flex-col items-center gap-1 ${
+            onClick={() => setCurrentView('list')}
+            className={`p-3 rounded-lg transition-all ${
               currentView === 'list'
-                ? 'text-blue-600 bg-blue-50'
-                : 'text-gray-600'
+                ? 'bg-cyan-500/20 text-cyan-400'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
+            title="Checklist"
           >
-            <CheckSquare className="w-5 h-5" />
-            <span className="text-xs">Tasks</span>
+            <ListTodo className="w-6 h-6" />
           </button>
 
-          <button
-            onClick={() => handleViewChange('calendar')}
-            className={`py-2 px-3 rounded text-sm font-medium flex flex-col items-center gap-1 ${
-              currentView === 'calendar'
-                ? 'text-blue-600 bg-blue-50'
-                : 'text-gray-600'
-            }`}
-          >
-            <Calendar className="w-5 h-5" />
-            <span className="text-xs">Calendar</span>
-          </button>
+          {/* Microphone Button (Center, Larger) */}
+          <VoiceInput
+            onTranscript={handleCommand}
+            disabled={isLoading || inputMode === 'chat'}
+            isActive={inputMode === 'voice'}
+            onActivate={() => setInputMode('voice')}
+          />
 
+          {/* Chat Button */}
           <button
-            onClick={() => handleViewChange('matrix')}
-            className={`py-2 px-3 rounded text-sm font-medium flex flex-col items-center gap-1 ${
-              currentView === 'matrix'
-                ? 'text-blue-600 bg-blue-50'
-                : 'text-gray-600'
+            onClick={() => setInputMode(inputMode === 'chat' ? 'none' : 'chat')}
+            className={`p-3 rounded-lg transition-all ${
+              inputMode === 'chat'
+                ? 'bg-cyan-500/20 text-cyan-400'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
+            title="Chat"
           >
-            <Grid3x3 className="w-5 h-5" />
-            <span className="text-xs">Matrix</span>
+            <MessageCircle className="w-6 h-6" />
           </button>
         </div>
-      </nav>
+
+        {/* Chat Input (when active) */}
+        {inputMode === 'chat' && (
+          <div className="border-t border-white/10 px-4 py-3">
+            <ChatInput
+              onCommand={handleCommand}
+              isLoading={isLoading}
+              onClose={() => setInputMode('none')}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

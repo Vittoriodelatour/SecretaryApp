@@ -1,27 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, MicOff, AlertCircle } from 'lucide-react';
+import { Mic, MicOff } from 'lucide-react';
 import speechService from '../services/speechService';
 
-export default function VoiceInput({ onTranscript, disabled }) {
+export default function VoiceInput({ onTranscript, disabled, isActive, onActivate }) {
   const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState('');
   const [supported, setSupported] = useState(true);
 
   useEffect(() => {
     setSupported(speechService.isSupported());
-
-    if (!speechService.isSupported()) {
-      setError('Speech recognition not supported in this browser');
-    }
   }, []);
 
   useEffect(() => {
     speechService.onListeningStart = () => {
       setIsListening(true);
       setError('');
-      setInterimTranscript('');
+      onActivate?.();
     };
 
     speechService.onListeningEnd = () => {
@@ -29,9 +23,7 @@ export default function VoiceInput({ onTranscript, disabled }) {
     };
 
     speechService.onResult = (result) => {
-      setInterimTranscript(result.interim);
       if (result.isFinal) {
-        setTranscript(result.final.trim());
         if (onTranscript) {
           onTranscript(result.final.trim());
         }
@@ -41,9 +33,9 @@ export default function VoiceInput({ onTranscript, disabled }) {
     speechService.onError = (error) => {
       setIsListening(false);
       if (error === 'no-speech') {
-        setError('No speech detected. Try speaking again.');
+        setError('No speech detected');
       } else if (error === 'network') {
-        setError('Network error. Check your connection.');
+        setError('Network error');
       } else {
         setError(`Error: ${error}`);
       }
@@ -55,7 +47,7 @@ export default function VoiceInput({ onTranscript, disabled }) {
       speechService.onResult = null;
       speechService.onError = null;
     };
-  }, [onTranscript]);
+  }, [onTranscript, onActivate]);
 
   const toggleListening = () => {
     if (!supported || disabled) return;
@@ -66,8 +58,6 @@ export default function VoiceInput({ onTranscript, disabled }) {
     } else {
       try {
         setError('');
-        setTranscript('');
-        setInterimTranscript('');
         speechService.startListening();
       } catch (err) {
         setError(err.message);
@@ -77,52 +67,36 @@ export default function VoiceInput({ onTranscript, disabled }) {
 
   if (!supported) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg border border-red-200">
-        <AlertCircle className="w-4 h-4 text-red-600" />
-        <span className="text-sm text-red-700">Speech recognition not supported</span>
-      </div>
+      <button
+        disabled
+        className="w-14 h-14 rounded-full bg-gray-500/20 text-gray-400 flex items-center justify-center cursor-not-allowed"
+        title="Speech recognition not supported"
+      >
+        <Mic className="w-7 h-7" />
+      </button>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col items-center gap-2">
       <button
         onClick={toggleListening}
         disabled={disabled}
-        className={`flex items-center justify-center w-16 h-16 rounded-full transition-all ${
+        className={`w-14 h-14 rounded-full transition-all flex items-center justify-center shadow-lg ${
           isListening
-            ? 'bg-red-500 hover:bg-red-600 animate-pulse-ring'
-            : 'bg-blue-500 hover:bg-blue-600'
-        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} text-white shadow-lg`}
-        title={isListening ? 'Listening... Click to stop' : 'Click to start listening'}
+            ? 'bg-gradient-to-br from-cyan-500 to-cyan-600 scale-110 animate-pulse'
+            : 'bg-gradient-to-br from-cyan-400 to-cyan-500 hover:from-cyan-500 hover:to-cyan-600'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} text-white`}
+        title={isListening ? 'Listening... Click to stop' : 'Click to speak'}
       >
         {isListening ? (
-          <MicOff className="w-6 h-6" />
+          <MicOff className="w-7 h-7" />
         ) : (
-          <Mic className="w-6 h-6" />
+          <Mic className="w-7 h-7" />
         )}
       </button>
-
-      {isListening && (
-        <div className="text-sm text-gray-600 text-center">
-          {interimTranscript && (
-            <p className="italic text-gray-500">{interimTranscript}</p>
-          )}
-          {!interimTranscript && <p>Listening...</p>}
-        </div>
-      )}
-
       {error && (
-        <div className="flex items-center gap-2 p-2 bg-red-50 rounded border border-red-200">
-          <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-          <span className="text-xs text-red-700">{error}</span>
-        </div>
-      )}
-
-      {transcript && !isListening && (
-        <div className="p-2 bg-blue-50 rounded border border-blue-200">
-          <p className="text-sm text-blue-900">Transcript: {transcript}</p>
-        </div>
+        <div className="text-xs text-red-400">{error}</div>
       )}
     </div>
   );
