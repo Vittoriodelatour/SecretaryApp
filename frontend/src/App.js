@@ -12,6 +12,7 @@ import speechService from './services/speechService';
 function App() {
   const [currentView, setCurrentView] = useState('list');
   const [tasks, setTasks] = useState([]);
+  const [completedTasks, setCompletedTasks] = useState([]);
   const [lastResponse, setLastResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,12 +23,24 @@ function App() {
   // Load tasks on mount
   useEffect(() => {
     fetchTasks();
+    fetchCompletedTasks();
   }, []);
 
   const fetchTasks = async () => {
     try {
       const response = await apiService.getTasks({ status: 'pending' });
       setTasks(response.data);
+      setError('');
+    } catch (err) {
+      setError('Unable to connect. Make sure backend is running.');
+      console.error('Error fetching tasks:', err);
+    }
+  };
+
+  const fetchCompletedTasks = async () => {
+    try {
+      const response = await apiService.getTasks({ status: 'completed' });
+      setCompletedTasks(response.data);
 
       // Count completed tasks today
       const today = new Date().toDateString();
@@ -36,11 +49,8 @@ function App() {
         return completedDate === today;
       }).length;
       setCompletedToday(completed);
-
-      setError('');
     } catch (err) {
-      setError('Unable to connect. Make sure backend is running.');
-      console.error('Error fetching tasks:', err);
+      console.error('Error fetching completed tasks:', err);
     }
   };
 
@@ -82,6 +92,7 @@ function App() {
         speechService.speak(`Done: ${completedTask.title}`);
       }
       await fetchTasks();
+      await fetchCompletedTasks();
     } catch (err) {
       setError('Failed to complete task');
       console.error('Error completing task:', err);
@@ -95,17 +106,37 @@ function App() {
       setIsLoading(true);
       try {
         await apiService.deleteTask(taskId);
-        const deletedTask = tasks.find(t => t.id === taskId);
+        const deletedTask = tasks.find(t => t.id === taskId) || completedTasks.find(t => t.id === taskId);
         if (deletedTask) {
           speechService.speak(`Deleted: ${deletedTask.title}`);
         }
         await fetchTasks();
+        await fetchCompletedTasks();
       } catch (err) {
         setError('Failed to delete task');
         console.error('Error deleting task:', err);
       } finally {
         setIsLoading(false);
       }
+    }
+  };
+
+  const handleRestore = async (taskId) => {
+    setIsLoading(true);
+    try {
+      // Update task status back to pending
+      await apiService.updateTask(taskId, { status: 'pending' });
+      const restoredTask = completedTasks.find(t => t.id === taskId);
+      if (restoredTask) {
+        speechService.speak(`Restored: ${restoredTask.title}`);
+      }
+      await fetchTasks();
+      await fetchCompletedTasks();
+    } catch (err) {
+      setError('Failed to restore task');
+      console.error('Error restoring task:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -194,8 +225,11 @@ function App() {
         {currentView === 'list' && (
           <TaskList
             tasks={tasks}
+            completedTasks={completedTasks}
             onComplete={handleComplete}
             onDelete={handleDelete}
+            onRestore={handleRestore}
+            onCommand={handleCommand}
             isLoading={isLoading}
           />
         )}
