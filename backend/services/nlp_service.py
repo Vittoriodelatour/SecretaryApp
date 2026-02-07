@@ -171,7 +171,7 @@ class NLPService:
         title = title.strip()
 
         if title and len(title) > 1:
-            entities['task_title'] = title
+            entities['task_title'] = self._sanitize_search_term(title)
 
         return {
             'intent': 'complete_task',
@@ -199,7 +199,7 @@ class NLPService:
         title = title.strip()
 
         if title and len(title) > 1:
-            entities['task_title'] = title
+            entities['task_title'] = self._sanitize_search_term(title)
 
         return {
             'intent': 'delete_task',
@@ -220,3 +220,13 @@ class NLPService:
 
         # Default importance (medium)
         return None
+
+    def _sanitize_search_term(self, term: str) -> str:
+        """
+        Sanitize search term to prevent SQL injection in ILIKE queries.
+        Remove SQL wildcards and limit length.
+        """
+        # Remove SQL wildcards
+        term = term.replace('%', '').replace('_', '')
+        # Limit length
+        return term[:100]

@@ -47,9 +47,20 @@ frontend/yarn-error.log*
 *~
 .DS_Store
 
-# Environment
+# Environment files - ALL variants
 .env
-.env.local
+.env.*
+!.env.example
+
+# Backend environment files
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Frontend environment files
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 
 # OS
 .DS_Store
