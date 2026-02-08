@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Circle, Trash2, MoreVertical, RotateCcw, Plus } from 'lucide-react';
+import ProgressBar from './ProgressBar';
 
 const UrgencyBars = ({ urgency = 1 }) => {
   const bars = Math.min(Math.max(urgency, 1), 3);
@@ -171,6 +172,28 @@ export default function TaskList({
           </div>
         )}
       </div>
+
+      {/* Today's Progress Indicator */}
+      {(tasks.length > 0 || completedThisWeek.length > 0) && (
+        <div className="p-4 rounded-xl bg-gradient-to-br from-cyan-500/5 to-cyan-600/5 border border-cyan-500/20">
+          <ProgressBar
+            current={completedThisWeek.filter(t => {
+              const today = new Date().toDateString();
+              const completedDate = t.completed_at ? new Date(t.completed_at).toDateString() : null;
+              return completedDate === today;
+            }).length}
+            total={tasks.length + completedThisWeek.filter(t => {
+              const today = new Date().toDateString();
+              const completedDate = t.completed_at ? new Date(t.completed_at).toDateString() : null;
+              return completedDate === today;
+            }).length}
+            label="Today's Completion"
+            color="from-cyan-400 to-cyan-500"
+            height="h-2"
+            showPercentage={true}
+          />
+        </div>
+      )}
 
       {/* Completed This Week Section */}
       {completedThisWeek.length > 0 && (

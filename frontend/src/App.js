@@ -6,6 +6,8 @@ import VoiceInput from './components/VoiceInput';
 import ChatInput from './components/ChatInput';
 import TaskList from './components/TaskList';
 import CalendarView from './components/CalendarView';
+import ProgressBar from './components/ProgressBar';
+import VoiceCommandsHelp from './components/VoiceCommandsHelp';
 import apiService from './services/api';
 import speechService from './services/speechService';
 
@@ -17,14 +19,23 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [completedToday, setCompletedToday] = useState(0);
+  const [totalTasksToday, setTotalTasksToday] = useState(0);
   const [responseType, setResponseType] = useState('success');
   const [inputMode, setInputMode] = useState('none'); // 'none', 'voice', 'chat'
+  const [showVoiceHelp, setShowVoiceHelp] = useState(false);
 
   // Load tasks on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchTasks();
     fetchCompletedTasks();
   }, []);
+
+  // Update total tasks today when tasks change
+  useEffect(() => {
+    const totalToday = completedToday + tasks.length;
+    setTotalTasksToday(totalToday > 0 ? totalToday : completedToday);
+  }, [tasks, completedToday]);
 
   const fetchTasks = async () => {
     try {
@@ -49,6 +60,11 @@ function App() {
         return completedDate === today;
       }).length;
       setCompletedToday(completed);
+
+      // Calculate total tasks created/started today (completed + active tasks created today)
+      // For now, total = completed today + all active tasks (approximation of what's relevant today)
+      const totalToday = completed + tasks.length;
+      setTotalTasksToday(totalToday);
     } catch (err) {
       console.error('Error fetching completed tasks:', err);
     }
@@ -240,13 +256,42 @@ function App() {
 
         {currentView === 'stats' && (
           <div className="space-y-4">
+            {/* Active Tasks Card */}
             <div className="p-6 rounded-xl bg-white/5 border border-white/10">
               <div className="text-cyan-400 text-3xl font-bold">{tasks.length}</div>
               <div className="text-gray-400 text-sm mt-1">Active Tasks</div>
             </div>
+
+            {/* Completed Today Card */}
             <div className="p-6 rounded-xl bg-white/5 border border-white/10">
               <div className="text-cyan-400 text-3xl font-bold">{completedToday}</div>
               <div className="text-gray-400 text-sm mt-1">Completed Today</div>
+            </div>
+
+            {/* Daily Progress Card */}
+            <div className="p-6 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-300">Today's Progress</h3>
+                <span className="text-xs font-bold text-cyan-400">
+                  {totalTasksToday > 0 ? Math.round((completedToday / totalTasksToday) * 100) : 0}%
+                </span>
+              </div>
+              <ProgressBar
+                current={completedToday}
+                total={totalTasksToday}
+                label="Completion Rate"
+                color="from-cyan-500 to-cyan-600"
+                height="h-3"
+              />
+              <p className="text-xs text-gray-500 mt-3">
+                {completedToday} of {totalTasksToday} tasks completed
+              </p>
+            </div>
+
+            {/* Weekly Stats */}
+            <div className="p-6 rounded-xl bg-white/5 border border-white/10">
+              <div className="text-cyan-400 text-3xl font-bold">{completedTasks.length}</div>
+              <div className="text-gray-400 text-sm mt-1">Completed This Week</div>
             </div>
           </div>
         )}
@@ -274,6 +319,7 @@ function App() {
             disabled={isLoading || inputMode === 'chat'}
             isActive={inputMode === 'voice'}
             onActivate={() => setInputMode('voice')}
+            onShowHelp={() => setShowVoiceHelp(true)}
           />
 
           {/* Chat Button */}
@@ -301,6 +347,11 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* Voice Commands Help Modal */}
+      {showVoiceHelp && (
+        <VoiceCommandsHelp onClose={() => setShowVoiceHelp(false)} />
+      )}
     </div>
   );
 }
