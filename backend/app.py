@@ -455,7 +455,7 @@ async def process_command(
             "success": True,
             "action": "task_created",
             "message": message,
-            "task": TaskResponse.from_orm(task),
+            "task": TaskResponse.model_validate(task),
         }
 
     # Handle list_tasks
@@ -479,7 +479,7 @@ async def process_command(
             "success": True,
             "action": "tasks_listed",
             "message": message,
-            "tasks": [TaskResponse.from_orm(t) for t in tasks],
+            "tasks": [TaskResponse.model_validate(t) for t in tasks],
         }
 
     # Handle complete_task
@@ -507,7 +507,7 @@ async def process_command(
             "success": True,
             "action": "task_completed",
             "message": f"Task '{completed_task.title}' marked as complete",
-            "task": TaskResponse.from_orm(completed_task),
+            "task": TaskResponse.model_validate(completed_task),
         }
 
     # Handle delete_task
@@ -554,14 +554,22 @@ async def get_tasks(
     db: Session = Depends(get_db),
 ):
     """Get tasks with optional filtering."""
-    status_enum = TaskStatus.pending if status.value == "pending" else None
+    # Map query enum to TaskStatus enum
+    status_map = {
+        "pending": TaskStatus.pending,
+        "completed": TaskStatus.completed,
+        "in_progress": TaskStatus.in_progress,
+        "all": None,  # None means no status filter
+    }
+    status_enum = status_map.get(status.value)
+
     tasks = TaskService.get_all_tasks(
         db=db,
         status=status_enum,
         date_filter=date_filter.value if date_filter else None,
         sort_by=sort_by.value,
     )
-    return [TaskResponse.from_orm(t) for t in tasks]
+    return [TaskResponse.model_validate(t) for t in tasks]
 
 
 @app.post("/api/tasks", response_model=TaskResponse)
@@ -583,7 +591,7 @@ async def create_task(
         duration_minutes=task_data.duration_minutes,
         task_type=task_type,
     )
-    return TaskResponse.from_orm(task)
+    return TaskResponse.model_validate(task)
 
 
 @app.get("/api/tasks/{task_id}", response_model=TaskResponse)
@@ -593,7 +601,7 @@ async def get_task(request: Request, task_id: int, db: Session = Depends(get_db)
     task = TaskService.get_task(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return TaskResponse.from_orm(task)
+    return TaskResponse.model_validate(task)
 
 
 @app.put("/api/tasks/{task_id}", response_model=TaskResponse)
@@ -605,10 +613,10 @@ async def update_task(
     db: Session = Depends(get_db),
 ):
     """Update a task."""
-    task = TaskService.update_task(db, task_id, task_data.dict(exclude_unset=True))
+    task = TaskService.update_task(db, task_id, task_data.model_dump(exclude_unset=True))
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return TaskResponse.from_orm(task)
+    return TaskResponse.model_validate(task)
 
 
 @app.patch("/api/tasks/{task_id}/complete", response_model=TaskResponse)
@@ -620,7 +628,7 @@ async def complete_task(
     task = TaskService.complete_task(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return TaskResponse.from_orm(task)
+    return TaskResponse.model_validate(task)
 
 
 @app.delete("/api/tasks/{task_id}")
@@ -651,18 +659,27 @@ async def get_calendar(
         end = datetime.strptime(end_date, "%Y-%m-%d").date()
 
         if start > end:
-            raise HTTPException(400, "start_date must be before or equal to end_date")
+            raise HTTPException(
+                status_code=400,
+                detail="start_date must be before or equal to end_date"
+            )
 
         if (end - start).days > 365:
-            raise HTTPException(400, "Date range cannot exceed 365 days")
+            raise HTTPException(
+                status_code=400,
+                detail="Date range cannot exceed 365 days"
+            )
     except ValueError as e:
         if "exceed 365 days" in str(e) or "before or equal" in str(e):
             raise
-        raise HTTPException(400, "Invalid date format")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format"
+        )
 
     calendar = TaskService.get_calendar_view(db, start_date, end_date)
     return {
-        date: [TaskResponse.from_orm(t) for t in tasks]
+        date: [TaskResponse.model_validate(t) for t in tasks]
         for date, tasks in calendar.items()
     }
 
@@ -673,7 +690,7 @@ async def get_priority_matrix(request: Request, db: Session = Depends(get_db)):
     """Get tasks organized by priority matrix (Eisenhower Matrix)."""
     matrix = TaskService.get_priority_matrix(db)
     return {
-        quadrant: [TaskResponse.from_orm(t) for t in tasks]
+        quadrant: [TaskResponse.model_validate(t) for t in tasks]
         for quadrant, tasks in matrix.items()
     }
 
