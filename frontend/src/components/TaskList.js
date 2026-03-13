@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Circle, Trash2, MoreVertical, RotateCcw, Plus } from 'lucide-react';
+import { Circle, Trash2, MoreVertical, RotateCcw, Plus, Zap } from 'lucide-react';
 import ProgressBar from './ProgressBar';
 
 const UrgencyBars = ({ urgency = 1 }) => {
@@ -65,6 +65,7 @@ export default function TaskList({
   onRestore,
   onCommand,
   isLoading,
+  onSetUrgency,
 }) {
   const [inputValue, setInputValue] = useState('');
 
@@ -154,10 +155,15 @@ export default function TaskList({
                   </div>
                 </div>
 
-                {/* Urgency Bars */}
-                <div className="flex-shrink-0">
+                {/* Urgency Bars with Manager Button */}
+                <button
+                  onClick={() => onSetUrgency && onSetUrgency(task)}
+                  className="flex-shrink-0 flex items-center gap-1 hover:bg-white/10 px-2 py-1 rounded transition-all"
+                  title="Set urgency"
+                >
+                  <Zap className="w-4 h-4 text-gray-500 hover:text-cyan-400 transition-colors" />
                   <UrgencyBars urgency={task.urgency} />
-                </div>
+                </button>
 
                 {/* Delete Button */}
                 <button

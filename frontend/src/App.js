@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import './index.css';
 import { Calendar, ListTodo, MessageCircle, AlertCircle, BarChart3 } from 'lucide-react';
@@ -8,6 +8,10 @@ import TaskList from './components/TaskList';
 import CalendarView from './components/CalendarView';
 import ProgressBar from './components/ProgressBar';
 import VoiceCommandsHelp from './components/VoiceCommandsHelp';
+import TaskSearch from './components/TaskSearch';
+import KeyboardShortcuts from './components/KeyboardShortcuts';
+import TaskUrgencyManager from './components/TaskUrgencyManager';
+import EnhancedStats from './components/EnhancedStats';
 import apiService from './services/api';
 import speechService from './services/speechService';
 
@@ -24,6 +28,15 @@ function App() {
   const [inputMode, setInputMode] = useState('none'); // 'none', 'voice', 'chat'
   const [showVoiceHelp, setShowVoiceHelp] = useState(false);
 
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [sortBy, setSortBy] = useState('date');
+  const [filteredTasks, setFilteredTasks] = useState([]);
+
+  // Task urgency manager state
+  const [selectedTaskForUrgency, setSelectedTaskForUrgency] = useState(null);
+
   // Load tasks on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -31,11 +44,107 @@ function App() {
     fetchCompletedTasks();
   }, []);
 
+  // Keyboard shortcuts handler
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      // Cmd/Ctrl + K for search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        document.querySelector('input[placeholder*="Search"]')?.focus();
+      }
+
+      // Number keys for navigation (1, 2, 3)
+      if (!inputMode && !selectedTaskForUrgency) {
+        if (e.key === '1') {
+          setCurrentView('list');
+        } else if (e.key === '2') {
+          setCurrentView('calendar');
+        } else if (e.key === '3') {
+          setCurrentView('stats');
+        }
+      }
+
+      // M for microphone toggle
+      if (e.key === 'm' || e.key === 'M') {
+        if (!inputMode) {
+          setInputMode('voice');
+        } else if (inputMode === 'voice') {
+          setInputMode('none');
+        }
+      }
+
+      // / for chat input
+      if (e.key === '/' && inputMode === 'none' && !selectedTaskForUrgency) {
+        e.preventDefault();
+        setInputMode('chat');
+      }
+
+      // Escape to close modals/inputs
+      if (e.key === 'Escape') {
+        setInputMode('none');
+        setSelectedTaskForUrgency(null);
+        setShowVoiceHelp(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [inputMode, selectedTaskForUrgency]);
+
   // Update total tasks today when tasks change
   useEffect(() => {
     const totalToday = completedToday + tasks.length;
     setTotalTasksToday(totalToday > 0 ? totalToday : completedToday);
   }, [tasks, completedToday]);
+
+  // Apply search and filters
+  useEffect(() => {
+    let result = [...tasks];
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(task =>
+        task.title.toLowerCase().includes(query) ||
+        (task.due_date && task.due_date.includes(query))
+      );
+    }
+
+    // Type filters
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (filterType === 'urgent') {
+      result = result.filter(task => task.urgency >= 3);
+    } else if (filterType === 'today') {
+      result = result.filter(task => {
+        if (!task.due_date) return false;
+        return new Date(task.due_date).toDateString() === today.toDateString();
+      });
+    } else if (filterType === 'overdue') {
+      result = result.filter(task => {
+        if (!task.due_date) return false;
+        const dueDate = new Date(task.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate < today;
+      });
+    }
+
+    // Sorting
+    if (sortBy === 'urgency') {
+      result.sort((a, b) => (b.urgency || 1) - (a.urgency || 1));
+    } else if (sortBy === 'date') {
+      result.sort((a, b) => {
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date) - new Date(b.due_date);
+      });
+    } else if (sortBy === 'created') {
+      result.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    }
+
+    setFilteredTasks(result);
+  }, [tasks, searchQuery, filterType, sortBy]);
 
   const fetchTasks = async () => {
     try {
@@ -156,6 +265,26 @@ function App() {
     }
   };
 
+  const handleSearch = useCallback((query) => {
+    setSearchQuery(query);
+  }, []);
+
+  const handleFilterChange = useCallback((filters) => {
+    setFilterType(filters.type);
+    setSortBy(filters.sortBy);
+  }, []);
+
+  const handleUpdateTaskUrgency = async (taskId, updates) => {
+    try {
+      await apiService.updateTask(taskId, updates);
+      await fetchTasks();
+      setSelectedTaskForUrgency(null);
+    } catch (err) {
+      setError('Failed to update task');
+      console.error('Error updating task:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white" style={{ backgroundColor: '#0f0f0f' }}>
       {/* Top Navigation Cards */}
@@ -239,15 +368,23 @@ function App() {
 
         {/* Content Views */}
         {currentView === 'list' && (
-          <TaskList
-            tasks={tasks}
-            completedTasks={completedTasks}
-            onComplete={handleComplete}
-            onDelete={handleDelete}
-            onRestore={handleRestore}
-            onCommand={handleCommand}
-            isLoading={isLoading}
-          />
+          <>
+            <TaskSearch
+              onSearch={handleSearch}
+              onFilterChange={handleFilterChange}
+              tasks={tasks}
+            />
+            <TaskList
+              tasks={filteredTasks}
+              completedTasks={completedTasks}
+              onComplete={handleComplete}
+              onDelete={handleDelete}
+              onRestore={handleRestore}
+              onCommand={handleCommand}
+              isLoading={isLoading}
+              onSetUrgency={(task) => setSelectedTaskForUrgency(task)}
+            />
+          </>
         )}
 
         {currentView === 'calendar' && (
@@ -255,45 +392,7 @@ function App() {
         )}
 
         {currentView === 'stats' && (
-          <div className="space-y-4">
-            {/* Active Tasks Card */}
-            <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-              <div className="text-cyan-400 text-3xl font-bold">{tasks.length}</div>
-              <div className="text-gray-400 text-sm mt-1">Active Tasks</div>
-            </div>
-
-            {/* Completed Today Card */}
-            <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-              <div className="text-cyan-400 text-3xl font-bold">{completedToday}</div>
-              <div className="text-gray-400 text-sm mt-1">Completed Today</div>
-            </div>
-
-            {/* Daily Progress Card */}
-            <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-300">Today's Progress</h3>
-                <span className="text-xs font-bold text-cyan-400">
-                  {totalTasksToday > 0 ? Math.round((completedToday / totalTasksToday) * 100) : 0}%
-                </span>
-              </div>
-              <ProgressBar
-                current={completedToday}
-                total={totalTasksToday}
-                label="Completion Rate"
-                color="from-cyan-500 to-cyan-600"
-                height="h-3"
-              />
-              <p className="text-xs text-gray-500 mt-3">
-                {completedToday} of {totalTasksToday} tasks completed
-              </p>
-            </div>
-
-            {/* Weekly Stats */}
-            <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-              <div className="text-cyan-400 text-3xl font-bold">{completedTasks.length}</div>
-              <div className="text-gray-400 text-sm mt-1">Completed This Week</div>
-            </div>
-          </div>
+          <EnhancedStats tasks={tasks} completedTasks={completedTasks} />
         )}
       </main>
 
@@ -352,6 +451,18 @@ function App() {
       {showVoiceHelp && (
         <VoiceCommandsHelp onClose={() => setShowVoiceHelp(false)} />
       )}
+
+      {/* Task Urgency Manager Modal */}
+      {selectedTaskForUrgency && (
+        <TaskUrgencyManager
+          task={selectedTaskForUrgency}
+          onUpdate={handleUpdateTaskUrgency}
+          onClose={() => setSelectedTaskForUrgency(null)}
+        />
+      )}
+
+      {/* Keyboard Shortcuts */}
+      <KeyboardShortcuts />
     </div>
   );
 }
